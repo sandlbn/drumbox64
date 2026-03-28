@@ -1,12 +1,3 @@
-/*
-
- * SID voice allocation:
- *   SID1 (0xD400): voices 0,1,2 -> kick, snare, hihat
- *   SID2 (0xD500 or 0xDE00): voices 0,1,2 -> tom, clap, crash
- *   If no second SID is found, voices 3-5 are muted / shared on SID1
- *
-
- */
 #ifndef DRUMBOX_H
 #define DRUMBOX_H
 
@@ -87,10 +78,10 @@
 /* ── Types ──────────────────────────────────────────────────────── */
 
 typedef struct {
-    uint8_t steps[NUM_TRACKS][NUM_STEPS];  /* 1=on, 0=off */
-    uint8_t name[16];                       /* preset name */
-    uint8_t kit;                            /* which kit */
-    uint8_t tempo;                          /* BPM, 60-200 */
+    uint8_t  steps[NUM_TRACKS][NUM_STEPS];  /* velocity 0-3 per step */
+    uint8_t  name[16];                      /* preset name */
+    uint8_t  kit;                           /* which kit */
+    uint8_t  tempo;                         /* BPM, 40-250 (fits uint8_t) */
 } Pattern;
 
 typedef struct {
@@ -154,6 +145,7 @@ extern const uint8_t  g_sid2_num_addrs;
 /* seq.c */
 void    seq_init(void);
 void    seq_restore_irq(void);
+void    seq_tick_capture(void);
 void    seq_poll(void);          /* call from main loop - does all sequencer work */
 void    seq_start(void);
 void    seq_stop(void);

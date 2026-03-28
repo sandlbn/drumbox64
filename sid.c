@@ -108,7 +108,19 @@ typedef struct {
 
 static const KV KITS[NUM_KITS][NUM_TRACKS] = {
 /* ── KIT_909: punchy electronic ─────────────────────────────────── */
-
+/*
+ * Based on TR-909 circuit analysis:
+ * Kick:  Short noise burst (click/punch ~200Hz), then TRI pitch sweep
+ *        from ~180Hz to ~55Hz. The noise gives the attack transient,
+ *        TRI gives the body. AD=0x03 for slight attack ramp.
+ * Snare: Noise crack (high freq), then TRI body at ~160Hz.
+ *        Short tight envelope = 909 snap character.
+ * CHH:   Very high noise freq = white hiss. Extremely short.
+ * OHH:   Same noise, longer decay = open splash.
+ * Tom:   TRI from ~410Hz sweeping to ~59Hz = 909 tom punch.
+ * Clap:  High noise, short = 909 snappy clap.
+ * Crash: High noise, long decay.
+ */
 {
 /*kick */ { 3405,  936, NOISE, 0x03, 0x09,133, 16,  TRI|GATE,  2, 3065},
 /*snare*/ {22000,22000, NOISE, 0x01, 0x06,  0,  9,  TRI|GATE,  2, 2724},
@@ -119,6 +131,8 @@ static const KV KITS[NUM_KITS][NUM_TRACKS] = {
 /*crash*/ {30000,30000, NOISE, 0x01, 0x0C,  0, 24,  0,         0,    0},
 },
 /* ── KIT_808: deep boomy ─────────────────────────────────────────── */
+/*
+ */
 {
 /*kick */ { 2213,  851, TRI,   0x01, 0x0C, 48, 28,  0,         0,    0},
 /*snare*/ {14000,14000, NOISE, 0x01, 0x0A,  0, 14,  TRI|GATE,  2, 2724},
@@ -128,7 +142,8 @@ static const KV KITS[NUM_KITS][NUM_TRACKS] = {
 /*clap */ {18000,18000, NOISE, 0x01, 0x07,  0,  9,  0,         0,    0},
 /*crash*/ {24000,24000, NOISE, 0x01, 0x0E,  0, 32,  0,         0,    0},
 },
-/* ── KIT_ROCK  ───────────── */
+/* ── KIT_ROCK: Hubbard noise-transient + pitched body ─────────────
+ */
 {
 /*kick */ { 6500,  100, TRI,       0x02, 0x0A, 25, 22,  0,          0,    0},
 /*snare*/ {28000,28000, NOISE,     0x01, 0x08,  0, 11,  PULSE|GATE, 1, 3800},
@@ -212,9 +227,12 @@ void sid_trigger(uint8_t track, uint8_t vel, uint8_t kit)
     k   = &KITS[kit][track];
     vol = VEL_VOL[vel];
 
-    /* Set master volume for this SID to match velocity */
-    if (sid == 0) SID1[SID_VOL_FLT] = (SID1[SID_VOL_FLT] & 0xF0) | vol;
-    else          SID2[SID_VOL_FLT] = (SID2[SID_VOL_FLT] & 0xF0) | vol;
+    /* Set master volume for this SID to match velocity.
+     * SID $D418 is WRITE-ONLY on real hardware - reading returns bus garbage.
+     * Bit 7 of $D418 mutes voice 3 (hihat) if accidentally set by a bad read.
+     * We don't use the filter so just write vol directly (no bits to preserve). */
+    if (sid == 0) SID1[SID_VOL_FLT] = vol;
+    else          SID2[SID_VOL_FLT] = vol;
 
     /* Set pulse width to square ($0800) for PULSE waveform sounds.
      * This gives the richest pulse body for kick/snare. */

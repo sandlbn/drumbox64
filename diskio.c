@@ -3,7 +3,7 @@
  * File format: 135 bytes
  *   [0-3]   magic "DB64"
  *   [4]     kit
- *   [5]     tempo
+ *   [5]     tempo (uint8_t, 40-250 BPM)
  *   [6]     swing (0-99)
  *   [7-22]  name (16 bytes)
  *   [23-134] steps[7][16] (112 bytes)
@@ -75,7 +75,7 @@ uint8_t disk_save_pattern(uint8_t slot)
     buf[0]=MAGIC[0]; buf[1]=MAGIC[1]; buf[2]=MAGIC[2]; buf[3]=MAGIC[3];
     buf[4]=g_pattern.kit;
     buf[5]=g_pattern.tempo;
-    buf[6]=g_swing;                 /* swing percentage */
+    buf[6]=g_swing;
     for (i=0;i<16;i++) buf[7+i]=g_pattern.name[i];
     for (t=0;t<NUM_TRACKS;t++)
         for (s=0;s<NUM_STEPS;s++)
@@ -125,9 +125,9 @@ uint8_t disk_load_pattern(uint8_t slot)
     g_pattern.kit   = buf[4];
     g_pattern.tempo = buf[5];
     if (g_pattern.kit>=NUM_KITS) g_pattern.kit=KIT_909;
-    if (g_pattern.tempo<40||g_pattern.tempo>250) g_pattern.tempo=120;
+    if (g_pattern.tempo<40||g_pattern.tempo>280) g_pattern.tempo=120;
 
-    seq_set_swing(buf[6] <= 99 ? buf[6] : 0);  /* restore swing */
+    seq_set_swing(buf[6] <= 99 ? buf[6] : 0);
 
     for (i=0;i<16;i++) g_pattern.name[i]=buf[7+i];
     for (t=0;t<NUM_TRACKS;t++)

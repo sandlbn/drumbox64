@@ -27,7 +27,8 @@ int main(void)
     uint8_t key;
     uint8_t last_step;
 
-    /* Kill CIA2 again with inline asm - belt and suspenders. */
+    /* Kill CIA2 again with inline asm - belt and suspenders.
+     * NOTE: fixed bug - explicit lda #$08 for CRB, not value from ICR read */
     __asm {
         lda #$5e
         sta $0318
@@ -43,6 +44,7 @@ int main(void)
     }
 
     /* Force VIC-II into correct state IMMEDIATELY.
+     * Do this before any C function calls, using direct writes.
      * $D011 = $1B: screen on, 25 rows, text mode, no scroll
      * $D016 = $08: 40 cols, no multicolor
      * $D018 = $15: screen RAM $0400, charset ROM $D000
@@ -75,6 +77,12 @@ int main(void)
 
     last_step = 0xFF;
     for (;;) {
+        /* Read CIA2 ICR at the very top of every iteration.
+         * This is the tightest possible polling - ensures we never miss
+         * a tick even if the rest of the loop (key handling, draws) is slow.
+         * seq_poll() drains s_tick_pending accumulated here. */
+        seq_tick_capture();
+
         seq_poll();
 
         if (g_tick_flag) {

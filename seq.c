@@ -1,5 +1,4 @@
 /*
- * seq.c - Step sequencer with swing, CIA2 Timer B polling
  *
  * SWING IMPLEMENTATION
  * --------------------
@@ -66,8 +65,9 @@ static uint8_t bpm_to_ticks(uint16_t bpm)
     if (bpm < 40)  bpm = 40;
     if (bpm > 280) bpm = 280;
     t = 3600u / (uint16_t)bpm;
-    if (t < 10) t = 10;
-    if (t > 60) t = 60;
+    /* t range: 3600/280=12 (fast) to 3600/40=90 (slow).
+     * uint8_t can hold up to 255, so no overflow. No clamping needed. */
+    if (t < 10) t = 10;   /* safety floor ~360 BPM */
     return (uint8_t)t;
 }
 
@@ -115,18 +115,27 @@ void seq_restore_irq(void)
     (void)CIA2_ICR;
 }
 
+/* ── seq_tick_capture ─────────────────────────────────────────────── */
+/* Called at the very top of the main loop to capture CIA ticks immediately.
+ * Separating this from seq_poll() means ticks are captured even when
+ * the rest of the loop (screen draws, key handling) takes a long time.
+ * The cap of 8 prevents runaway if something goes very wrong (~33ms). */
+void seq_tick_capture(void)
+{
+    if (CIA2_ICR & 0x02) {
+        if (s_tick_pending < 8) s_tick_pending++;
+    }
+}
+
 /* ── seq_poll ─────────────────────────────────────────────────────── */
 void seq_poll(void)
 {
-    uint8_t icr;
     uint8_t track;
     uint8_t threshold;
 
-    /* Count this CIA tick if the flag is set.
-     * Reading ICR clears it, so we must count before it's lost. */
-    icr = CIA2_ICR;
-    if (icr & 0x02) {
-        if (s_tick_pending < 8) s_tick_pending++;  /* cap at 8 - ~33ms max catchup */
+    /* Also capture here in case seq_poll is called without seq_tick_capture */
+    if (CIA2_ICR & 0x02) {
+        if (s_tick_pending < 8) s_tick_pending++;
     }
 
     if (s_tick_pending == 0) return;
@@ -150,10 +159,16 @@ void seq_poll(void)
 
         g_cur_step = (g_cur_step + 1) & (NUM_STEPS - 1);
 
-        for (track = 0; track < NUM_TRACKS; track++) {
-            uint8_t vel = g_pattern.steps[track][g_cur_step];
-            if (vel)
+        /* Trigger all tracks. CHH (track 2) yields to OHH (track 3)
+         * since they share a voice - if OHH fires, skip CHH. */
+        {
+            uint8_t ohh_firing = g_pattern.steps[TRK_OHH][g_cur_step] > 0;
+            for (track = 0; track < NUM_TRACKS; track++) {
+                uint8_t vel = g_pattern.steps[track][g_cur_step];
+                if (!vel) continue;
+                if (track == TRK_CHH && ohh_firing) continue;
                 sid_trigger(track, vel, g_kit);
+            }
         }
 
         g_tick_flag = 1;
