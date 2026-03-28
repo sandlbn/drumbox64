@@ -11,7 +11,7 @@ EMULATOR  ?= x64sc
 all: $(TARGET)
 
 $(TARGET): $(SRCS) drumbox.h
-	$(OSCAR64) -o=$(TARGET) -O2 -g $(SRCS) -ii=$(INCDIR)
+	$(OSCAR64) -o=$(TARGET) -O2 -g $(SRCS) -i=$(INCDIR)
 
 run: $(TARGET)
 	$(EMULATOR) -autostart $(TARGET)
