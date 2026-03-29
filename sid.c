@@ -131,19 +131,16 @@ static const KV KITS[NUM_KITS][NUM_TRACKS] = {
 /*crash*/ {30000,30000, NOISE, 0x01, 0x0C,  0, 24,  0,         0,    0},
 },
 /* ── KIT_808: deep boomy ─────────────────────────────────────────── */
-/*
- */
 {
-/*kick */ { 2213,  851, TRI,   0x01, 0x0C, 48, 28,  0,         0,    0},
-/*snare*/ {14000,14000, NOISE, 0x01, 0x0A,  0, 14,  TRI|GATE,  2, 2724},
-/*chh  */ {28000,28000, NOISE, 0x01, 0x01,  0,  2,  0,         0,    0},
-/*ohh  */ {28000,28000, NOISE, 0x01, 0x0B,  0, 16,  0,         0,    0},
-/*tom  */ { 3065,  851, TRI,   0x01, 0x09, 14, 22,  0,         0,    0},
-/*clap */ {18000,18000, NOISE, 0x01, 0x07,  0,  9,  0,         0,    0},
-/*crash*/ {24000,24000, NOISE, 0x01, 0x0E,  0, 32,  0,         0,    0},
+/*kick */ { 2213,  851, SAW,   0x09, 0x00, 19, 80,  TRI|GATE,  2,    0},
+/*snare*/ {12000,12000, NOISE, 0x03, 0x00,  0, 14,  TRI|GATE,  2, 2724},
+/*chh  */ {58000,58000, NOISE, 0x01, 0x01,  0,  4,  0,         0,    0},
+/*ohh  */ {58000,58000, NOISE, 0x01, 0x05,  0, 22,  0,         0,    0},
+/*tom  */ { 2213,  851, PULSE, 0x05, 0x00, 14, 20,  0,         0,    0},
+/*clap */ {16000,16000, NOISE, 0x01, 0x05,  0,  8,  0,         0,    0},
+/*crash*/ {20000,20000, NOISE, 0x02, 0x0D,  0, 38,  0,         0,    0},
 },
-/* ── KIT_ROCK: Hubbard noise-transient + pitched body ─────────────
- */
+/* ── KIT_ROCK: Hubbard noise-transient + pitched body ───────────── */
 {
 /*kick */ { 6500,  100, TRI,       0x02, 0x0A, 25, 22,  0,          0,    0},
 /*snare*/ {28000,28000, NOISE,     0x01, 0x08,  0, 11,  PULSE|GATE, 1, 3800},
@@ -241,12 +238,12 @@ void sid_trigger(uint8_t track, uint8_t vel, uint8_t kit)
         vw(sid, vn, SID_PW_HI, 0x08);  /* 50% duty cycle = square wave */
     }
 
-    vw(sid, vn, SID_CTRL, k->wave & ~GATE);  /* waveform, gate off first */
-    vw(sid, vn, SID_FREQ_LO, (uint8_t)(k->fstart & 0xFF));
-    vw(sid, vn, SID_FREQ_HI, (uint8_t)(k->fstart >> 8));
+    vw(sid, vn, SID_CTRL, TEST);              /* reset oscillator */
     vw(sid, vn, SID_AD, k->ad);
     vw(sid, vn, SID_SR, k->sr);
-    vw(sid, vn, SID_CTRL, k->wave | GATE);   /* gate on */
+    vw(sid, vn, SID_FREQ_LO, (uint8_t)(k->fstart & 0xFF));
+    vw(sid, vn, SID_FREQ_HI, (uint8_t)(k->fstart >> 8));
+    vw(sid, vn, SID_CTRL, k->wave | GATE);   /* release TEST, gate on */
 
     /* Record sweep state */
     g_voices[vi].sid       = sid;
