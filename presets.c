@@ -482,8 +482,6 @@ const Pattern g_presets[MAX_PRESETS] = {
 },
 
 /* ── 27: Hip Hop ────────────────────────────────────────── */
-/*
- */
 {
   .steps = {
     /* kick  */ {1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,0},
@@ -500,8 +498,6 @@ const Pattern g_presets[MAX_PRESETS] = {
 },
 
 /* ── 28: Drum & Bass ─────────────────────────────────────── */
-/*
- */
 {
   .steps = {
     /* kick  */ {3,0,0,0, 0,0,3,0, 0,3,0,0, 0,0,0,0},
@@ -518,8 +514,6 @@ const Pattern g_presets[MAX_PRESETS] = {
 },
 
 /* ── 29: Jungle / Breakbeat ──────────────────────────────── */
-/*
- */
 {
   .steps = {
     /* kick  */ {1,0,0,1, 0,0,0,0, 1,0,0,0, 0,1,0,0},
@@ -538,6 +532,10 @@ const Pattern g_presets[MAX_PRESETS] = {
 /* ── 30: Metal - Thrash ──────────────────────────────────────────── */
 /*
  * Classic thrash metal at 240 BPM.
+ * Double kick on every 16th note (1,2,3,4,5,6,7,8...).
+ * Snare on beats 3 and 11 (half-time feel).
+ * Closed hi-hat on every 16th for that relentless drive.
+ * Crash on beat 1. ROCK kit for the heavier sound.
  */
 {
   .steps = {
@@ -555,8 +553,6 @@ const Pattern g_presets[MAX_PRESETS] = {
 },
 
 /* ── 31: Metal - Blast Beat ──────────────────────────────────────── */
-/*
- */
 {
   .steps = {
     /* kick  */ {1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0},
@@ -626,6 +622,23 @@ void preset_load(uint8_t index)
 
     /* Apply kit and tempo */
     g_kit   = p->kit;
+    seq_set_tempo((uint16_t)p->tempo);
+}
+
+void preset_load_meta(uint8_t index)
+{
+    uint8_t t;
+    const Pattern *p;
+
+    if (index >= g_num_presets) index = 0;
+    p = &g_presets[index];
+
+    for (t = 0; t < 16; t++)
+        g_pattern.name[t] = p->name[t];
+
+    g_pattern.kit   = p->kit;
+    g_pattern.tempo = p->tempo;
+    g_kit           = p->kit;
     seq_set_tempo((uint16_t)p->tempo);
 }
 

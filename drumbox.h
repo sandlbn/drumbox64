@@ -45,7 +45,8 @@
 #define KIT_909     0
 #define KIT_808     1
 #define KIT_ROCK    2
-#define NUM_KITS    3
+#define KIT_SID     3
+#define NUM_KITS    4
 
 /* Sequencer state */
 #define SEQ_STOPPED 0
@@ -167,6 +168,7 @@ extern  uint8_t g_edit_mode;
 
 /* presets.c */
 void    preset_load(uint8_t index);
+void    preset_load_meta(uint8_t index);  /* load kit/tempo/name only, keep steps */
 void    preset_get_name(uint8_t index, uint8_t *buf);
 extern const Pattern g_presets[MAX_PRESETS];
 extern const uint8_t g_num_presets;

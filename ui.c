@@ -76,7 +76,7 @@ static const char * const TLAB[NUM_TRACKS] = {
     "KICK  ", "SNARE ", "C.HAT ",
     "O.HAT ", "TOM   ", "CLAP  ", "CRASH "
 };
-static const char * const KLAB[NUM_KITS] = { "909", "808", "ROK" };
+static const char * const KLAB[NUM_KITS] = { "909", "808", "ROK", "SID" };
 
 /* ── Grid constants ──────────────────────────────────────────────── */
 #define GROW  4    /* first grid row on screen */
@@ -130,6 +130,18 @@ uint8_t ui_read_key(void)
 /* Global edit mode flag - also used by ui_draw_grid to dim labels */
 uint8_t g_edit_mode = 0;
 static uint8_t s_edit_row = 0;  /* 0=swing, 1=velocity */
+
+/* Copy/paste clipboard */
+static uint8_t s_clip_steps[NUM_TRACKS][NUM_STEPS]; /* copied step data */
+static uint8_t s_clip_tracks = 0; /* NUM_TRACKS=full pattern, 1=single track */
+static uint8_t s_clip_valid  = 0; /* 1 if clipboard has data */
+
+/* Single edit scratch buffer (~113 bytes).
+ * Saves steps for ONE preset slot so edits survive N/B navigation.
+ * When navigating away from an edited slot, steps are saved here.
+ * Navigating back restores them. Editing a second slot should evicts the first. */
+static uint8_t s_scratch_steps[NUM_TRACKS][NUM_STEPS];
+static uint8_t s_scratch_slot = 0xFF; /* 0xFF = empty */
 
 static void ui_draw_edit_overlay_sel(uint8_t sel)
 {
@@ -190,10 +202,11 @@ static void ui_draw_edit_overlay_sel(uint8_t sel)
     sfill(17, 0, 40, 0x20, 0);
     sputs(17, 4, "UP/DN:SWITCH  LFT/RGT:ADJUST", CDG);
 
-    /* Clear rows 18-20 that may have old help text */
+    /* Clear rows 18-21 that may have old help text */
     sfill(18, 0, 40, 0x20, 0);
     sfill(19, 0, 40, 0x20, 0);
     sfill(20, 0, 40, 0x20, 0);
+    sfill(21, 0, 40, 0x20, 0);
 }
 
 static void ui_draw_edit_overlay(void)
@@ -475,19 +488,27 @@ void ui_draw_full(void)
     sputs(17,  0, "+/-", CYL); sputs(17,  3, ":TEMPO  ", CDG);
     sputs(17, 11, "</>", CYL); sputs(17, 14, ":SWING  ", CDG);
     sputs(17, 22, "C", CYL);   sputs(17, 23, ":CLR ", CDG);
-    sputs(17, 28, "R", CYL);   sputs(17, 29, ":RELOAD", CDG);
+    sputs(17, 28, "R", CYL);   sputs(17, 29, ":RLD*", CDG);
 
-    /* Row 18: kits + quit */
+    /* Row 18: kits (all 4 fit at cols 0,8,16,24) */
     sfill(18, 0, 40, 0x20, 0);
-    sputs(18,  0, "F1", CYL);  sputs(18,  2, ":909  ", CDG);
-    sputs(18,  8, "F3", CYL);  sputs(18, 10, ":808  ", CDG);
-    sputs(18, 16, "F5", CYL);  sputs(18, 18, ":ROCK  ", CDG);
-    sputs(18, 25, "Q", CR);    sputs(18, 26, ":QUIT", CDG);
+    sputs(18,  0, "F1", CYL);  sputs(18,  2, ":909 ", CDG);
+    sputs(18,  8, "F3", CYL);  sputs(18, 10, ":808 ", CDG);
+    sputs(18, 16, "F5", CYL);  sputs(18, 18, ":ROCK", CDG);
+    sputs(18, 24, "F6", CYL);  sputs(18, 26, ":SID ", CDG);
+    sputs(18, 32, "Q", CR);    sputs(18, 33, ":QUIT", CDG);
 
     /* Row 19: SID2 */
     sfill(19, 0, 40, 0x20, 0);
     sputs(19,  0, "2", CYL);   sputs(19,  1, ":SID2 ON/OFF  ", CDG);
     sputs(19, 15, "3", CYL);   sputs(19, 16, ":SID2 ADDR", CDG);
+
+    /* Row 19b - we reuse row 21 which is blank for copy/paste help */
+    sfill(21, 0, 40, 0x20, 0);
+    sputs(21,  0, "T", CYL);   sputs(21,  1, ":CPY TRACK  ", CDG);
+    sputs(21, 13, "Y", CYL);   sputs(21, 14, ":CPY PTRN  ", CDG);
+    sputs(21, 25, "V", CYL);   sputs(21, 26, ":PASTE", CDG);
+    /* Row 21b: explain RLD* - N/B browse keeps steps, R reloads from ROM */
 
     /* Row 20: disk */
     sfill(20, 0, 40, 0x20, 0);
@@ -496,9 +517,6 @@ void ui_draw_full(void)
     sputs(20, 16, "[", CCY);   sputs(20, 17, ":SLT-  ", CDG);
     sputs(20, 24, "]", CCY);   sputs(20, 25, ":SLT+  ", CDG);
     sputs(20, 32, "D", CCY);   sputs(20, 33, ":DRV", CDG);
-
-    /* Row 21: blank */
-    sfill(21, 0, 40, 0x20, 0);
 
     /* Row 22: double separator */
     sfill(22, 0, 40, '=', CLB);
@@ -533,7 +551,7 @@ void ui_draw_status(void)
         sputs(1, 32, "S2:OFF  ", CDG);
     }
 
-    /* Row 2: preset */
+    /* Row 2: preset + clipboard indicator */
     sfill(2, 0, 40, 0x20, CLB);
     sputs(2, 0, "PRESET:", CLB);
     snum2(2, 7, g_cur_preset, CW);
@@ -541,6 +559,10 @@ void ui_draw_status(void)
     snum2(2, 10, g_num_presets, CDG);
     preset_get_name(g_cur_preset, nb);
     for (i = 0; i < 16; i++) sput(2, (uint8_t)(13 + i), a2s(nb[i]), CW);
+    /* Clipboard indicator at col 30 - always visible */
+    if (s_clip_valid) {
+        sputs(2, 30, s_clip_tracks == 1 ? "[CPY:TRK]" : "[CPY:PAT]", CYL);
+    }
 
     /* Row 24: cursor + disk slot + drive */
     sfill(24, 0, 40, 0x20, CLB);
@@ -657,6 +679,14 @@ void ui_draw_playhead(uint8_t step)
 }
 
 /* ── ui_handle_key ───────────────────────────────────────────────── */
+/* Flash a short message on row 24 right side (cols 20-39) */
+static void ui_flash_msg(const char *msg, uint8_t col)
+{
+    uint8_t i;
+    sfill(24, 20, 20, 0x20, CLB);
+    sputs(24, col, msg, CYL);
+}
+
 void ui_handle_key(uint8_t key)
 {
     uint8_t t, s;
@@ -742,13 +772,47 @@ void ui_handle_key(uint8_t key)
     }
 
     case 'N': case 'n':
-        g_cur_preset = (g_cur_preset < (uint8_t)(g_num_presets - 1))
-                       ? g_cur_preset + 1 : 0;
-        preset_load(g_cur_preset); ui_draw_full(); break;
-    case 'B': case 'b':
-        g_cur_preset = (g_cur_preset > 0) ? g_cur_preset - 1
-                       : (uint8_t)(g_num_presets - 1);
-        preset_load(g_cur_preset); ui_draw_full(); break;
+    case 'B': case 'b': {
+        /* Save current steps to scratch if they differ from ROM preset */
+        uint8_t from = g_cur_preset;
+        uint8_t to;
+        uint8_t ti2, si2, differs = 0;
+        const Pattern *rom;
+
+        if (key == 'N' || key == 'n')
+            to = (from < (uint8_t)(g_num_presets-1)) ? from+1 : 0;
+        else
+            to = (from > 0) ? from-1 : (uint8_t)(g_num_presets-1);
+
+        /* Check if current steps differ from ROM */
+        rom = &g_presets[from];
+        for (ti2 = 0; ti2 < NUM_TRACKS && !differs; ti2++)
+            for (si2 = 0; si2 < NUM_STEPS && !differs; si2++)
+                if (g_pattern.steps[ti2][si2] != rom->steps[ti2][si2])
+                    differs = 1;
+
+        if (differs) {
+            /* Save to scratch, tagging which slot these belong to */
+            for (ti2 = 0; ti2 < NUM_TRACKS; ti2++)
+                for (si2 = 0; si2 < NUM_STEPS; si2++)
+                    s_scratch_steps[ti2][si2] = g_pattern.steps[ti2][si2];
+            s_scratch_slot = from;
+        }
+
+        g_cur_preset = to;
+
+        /* Load destination - from scratch if we saved it, else from ROM */
+        if (s_scratch_slot == to) {
+            preset_load(to);  /* load meta first */
+            for (ti2 = 0; ti2 < NUM_TRACKS; ti2++)
+                for (si2 = 0; si2 < NUM_STEPS; si2++)
+                    g_pattern.steps[ti2][si2] = s_scratch_steps[ti2][si2];
+        } else {
+            preset_load(to);
+        }
+        ui_draw_full();
+        break;
+    }
 
     case 'C': case 'c':
         for (t = 0; t < NUM_TRACKS; t++)
@@ -757,11 +821,63 @@ void ui_handle_key(uint8_t key)
         ui_draw_grid(); break;
 
     case 'R': case 'r':
+        s_scratch_slot = 0xFF;  /* discard scratch on explicit reload */
         preset_load(g_cur_preset); ui_draw_full(); break;
+
+    /* ── Copy / Paste ──────────────────────────────────── */
+    case 'T': case 't':
+        /* Copy current track row only */
+        {
+            uint8_t si;
+            for (si = 0; si < NUM_STEPS; si++)
+                s_clip_steps[0][si] = g_pattern.steps[g_cur_track][si];
+            s_clip_tracks = 1;
+            s_clip_valid  = 1;
+            ui_draw_status();
+            ui_flash_msg("CPY:TRACK", 20);
+        }
+        break;
+
+    case 'Y': case 'y':
+        /* Copy full pattern (all tracks) */
+        {
+            uint8_t ti, si;
+            for (ti = 0; ti < NUM_TRACKS; ti++)
+                for (si = 0; si < NUM_STEPS; si++)
+                    s_clip_steps[ti][si] = g_pattern.steps[ti][si];
+            s_clip_tracks = NUM_TRACKS;
+            s_clip_valid  = 1;
+            ui_draw_status();
+            ui_flash_msg("CPY:PATTERN", 20);
+        }
+        break;
+
+    case 'V': case 'v':
+        /* Paste clipboard */
+        if (s_clip_valid) {
+            uint8_t ti, si;
+            if (s_clip_tracks == 1) {
+                /* Paste single track into current track */
+                for (si = 0; si < NUM_STEPS; si++)
+                    g_pattern.steps[g_cur_track][si] = s_clip_steps[0][si];
+                ui_flash_msg("PST:TRACK", 20);
+            } else {
+                /* Paste full pattern */
+                for (ti = 0; ti < NUM_TRACKS; ti++)
+                    for (si = 0; si < NUM_STEPS; si++)
+                        g_pattern.steps[ti][si] = s_clip_steps[ti][si];
+                ui_flash_msg("PST:PATTERN", 20);
+            }
+            ui_draw_grid();
+        } else {
+            ui_flash_msg("EMPTY CLIP", 20);
+        }
+        break;
 
     case 133: g_kit = KIT_909;  ui_draw_status(); break; /* F1 */
     case 134: g_kit = KIT_808;  ui_draw_status(); break; /* F3 */
     case 135: g_kit = KIT_ROCK; ui_draw_status(); break; /* F5 */
+    case 138: g_kit = KIT_SID;  ui_draw_status(); break; /* F6 */
 
     case '2':
         g_dual_sid ^= 1;
@@ -793,6 +909,7 @@ void ui_handle_key(uint8_t key)
     /* ── Disk save ───────────────────────────────────────── */
     case 'W': case 'w': {
         uint8_t ok;
+        s_scratch_slot = 0xFF;  /* saved to disk - scratch no longer needed? */
         /* Show "SAVING..." in status bar */
         sfill(24, 0, 40, 0x20, CLB);
         sputs(24, 0, "SAVING TO SLOT ", CLB);

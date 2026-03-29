@@ -150,6 +150,17 @@ static const KV KITS[NUM_KITS][NUM_TRACKS] = {
 /*clap */ {19000,19000, NOISE,     0x01, 0x05,  0,  6,  0,          0,    0},
 /*crash*/ {17000,17000, NOISE,     0x02, 0x0E,  0, 38,  0,          0,    0},
 },
+
+/* ── KIT_SID  ─────────────────────── */
+{
+/*kick */ { 4257,  681, NOISE, 0x02, 0x00,255, 14,  PULSE|GATE, 2,    0},
+/*snare*/ {18000,18000, NOISE, 0x01, 0x00,  0,  5,  0,          0,    0},
+/*chh  */ {62000,62000, NOISE, 0x01, 0x00,  0,  2,  0,          0,    0},
+/*ohh  */ {62000,62000, NOISE, 0x01, 0x03,  0, 12,  0,          0,    0},
+/*tom  */ { 6811, 1362, NOISE, 0x02, 0x00,544, 10,  PULSE|GATE, 2,    0},
+/*clap */ {20000,20000, NOISE, 0x02, 0x00,  0,  8,  0,          0,    0},
+/*crash*/ {55000,55000, NOISE, 0x01, 0x0C,  0, 30,  0,          0,    0},
+},
 };
 
 /* ── sid_next_addr: cycle SID2 to next address ──────────────────── */
